@@ -1,10 +1,14 @@
 package com.project.template.domain.entities;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 @Entity
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,17 +1,20 @@
 package com.project.template.config.utils.jwt;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTCreationException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
-
-import java.security.Key;
 import java.util.Date;
-import java.util.function.Function;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -23,57 +26,60 @@ public class JwtUtils {
     @Value("${jwt.time.expiration}")
     private String timeExpiration;
 
+    @Value("${jwt.user}")
+    private String userGenerator;
+
     //Generate Token
-    public String generateAccessToken(String username){
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + Long.parseLong(timeExpiration)))
-                .signWith(getSignatureKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
+    public String createToken(Authentication authentication){
+        try{
+            Algorithm algorithm = Algorithm.HMAC256(this.secretKey);
 
-    //Get sign of token
-    public Key getSignatureKey(){
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+            String username = authentication.getPrincipal().toString();
+            String authorities = authentication.getAuthorities()
+                    .stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.joining(","));
 
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
+            String jwtToken = JWT.create()
+                    .withIssuer(this.userGenerator)
+                    .withSubject(username)
+                    .withClaim("authorities",authorities)
+                    .withIssuedAt(new Date(System.currentTimeMillis()))
+                    .withExpiresAt(new Date(System.currentTimeMillis() + Long.parseLong(timeExpiration)))
+                    .withJWTId(UUID.randomUUID().toString())
+                    .withNotBefore(new Date(System.currentTimeMillis()))
+                    .sign(algorithm);
 
-    //Validate Access Token
-    public boolean isTokenValid(String token){
-        try {
-            Jwts.parser()
-                    .setSigningKey(getSignatureKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+            return jwtToken;
 
-            return true;
-
-        }catch (Exception ex){
-            log.error("Invalid Token, error: ".concat(ex.getMessage()));
-            return false;
+        }catch (JWTCreationException exception){
+            throw new JWTCreationException("Error to create Token: ", exception);
         }
     }
 
-    // Get All claims of Token
-    public Claims extractAllClaims(String token){
-        return Jwts.parser()
-                .setSigningKey(getSignatureKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+    //Validate Token
+    public DecodedJWT validateToken(String token){
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(this.secretKey);
+            JWTVerifier jwtVerifier = JWT.require(algorithm)
+                    .withIssuer(this.userGenerator)
+                    .build();
+
+            DecodedJWT decodedJWT = jwtVerifier.verify(token);
+            return decodedJWT;
+
+        }catch (JWTVerificationException exception){
+            throw new JWTVerificationException("Token invalid, not Authorized");
+        }
     }
 
-    // Get One claim of Token
-    public <T> T getClaim(String token, Function<Claims, T> claimsTFunction){
-        Claims claims = extractAllClaims(token);
-        return claimsTFunction.apply(claims);
+    //Extract Username
+    public String extractUsername(DecodedJWT decodedJWT){
+        return decodedJWT.getSubject().toString();
     }
 
-    // Get Username of Token
-    public String getUsernameFromToken(String token){
-        return getClaim(token, Claims::getSubject);
+    //Get Any Claim
+    public Claim getSpecificClaim(DecodedJWT decodedJWT, String claimName){
+        return decodedJWT.getClaim(claimName);
     }
 }
