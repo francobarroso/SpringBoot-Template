@@ -2,9 +2,7 @@ package com.project.template.services.auth;
 
 import com.project.template.config.utils.jwt.JwtUtils;
 import com.project.template.config.utils.mapper.impl.UserMapper;
-import com.project.template.domain.dto.AuthLoginRequest;
-import com.project.template.domain.dto.AuthResponse;
-import com.project.template.domain.dto.UserDTO;
+import com.project.template.domain.dto.*;
 import com.project.template.domain.entities.Role;
 import com.project.template.domain.entities.UserEntity;
 import com.project.template.domain.entities.UserHistory;
@@ -68,7 +66,7 @@ public class UserDetailServiceImpl implements UserDetailsService {
                 authorityList);
     }
 
-    public AuthResponse loginUser(AuthLoginRequest authLoginRequest){
+    public Response<AuthResponse> loginUser(AuthLoginRequest authLoginRequest){
         String username = authLoginRequest.username();
         String password = authLoginRequest.password();
 
@@ -77,9 +75,9 @@ public class UserDetailServiceImpl implements UserDetailsService {
 
         String accessToken = jwtUtils.createToken(authentication);
 
-        AuthResponse authResponse = new AuthResponse(username,"User Logged successfully", accessToken, true);
+        AuthResponse authResponse = new AuthResponse(username, accessToken);
 
-        return authResponse;
+        return new Response<>(true,authResponse,"User Logged successfully");
     }
 
     public Authentication authenticate(String username, String password){
@@ -96,10 +94,10 @@ public class UserDetailServiceImpl implements UserDetailsService {
         return new UsernamePasswordAuthenticationToken(username, userDetails.getPassword(), userDetails.getAuthorities());
     }
 
-    public AuthResponse register(UserDTO user) {
+    public Response<AuthResponse> register(UserDTO user) {
         Optional<UserEntity> userDb = userRepository.findByUsername(user.getUsername());
         if (userDb.isPresent()) {
-            throw new UserDetailServiceImpl.UserAlreadyExistsException("User already exists");
+            return new Response<>(false,null,"User already exist");
         }
 
         List<String> rolesRequest = new ArrayList<>();
@@ -107,10 +105,10 @@ public class UserDetailServiceImpl implements UserDetailsService {
                 .forEach(role -> rolesRequest.add(role.getRoleName().name()));
 
         Set<Role> rolesDb = roleRepository.findRolesByRoleNameIn(rolesRequest);
-
-        if(rolesDb.isEmpty()){
-            throw new IllegalArgumentException("The roles specified doesn't exist");
+        if(rolesDb.size() != user.getRoles().size()){
+            return new Response<>(false,null,"The roles specified doesn't exist");
         }
+
         UserEntity userEntity = userMapper.toEntity(user);
         UserHistory userHistory = UserHistory.builder()
                 .user(userEntity)
@@ -119,7 +117,6 @@ public class UserDetailServiceImpl implements UserDetailsService {
                 .accountNoLocked(true)
                 .credentialNoExpired(true)
                 .build();
-
 
         userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword()));
         userEntity.setUserHistory(userHistory);
@@ -132,9 +129,9 @@ public class UserDetailServiceImpl implements UserDetailsService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(userCreated.getUsername(), userCreated.getPassword(), authorityList);
 
         String accessToken = jwtUtils.createToken(authentication);
-        AuthResponse authResponse = new AuthResponse(userCreated.getUsername(),"User created successfully", accessToken, true);
+        AuthResponse authResponse = new AuthResponse(userCreated.getUsername(), accessToken);
 
-        return authResponse;
+        return new Response<>(true,authResponse,"User created successfully");
     }
 
     public static class UserAlreadyExistsException extends RuntimeException {

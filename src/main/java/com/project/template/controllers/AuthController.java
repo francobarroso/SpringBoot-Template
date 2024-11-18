@@ -2,6 +2,7 @@ package com.project.template.controllers;
 
 import com.project.template.domain.dto.AuthLoginRequest;
 import com.project.template.domain.dto.AuthResponse;
+import com.project.template.domain.dto.Response;
 import com.project.template.domain.dto.UserDTO;
 import com.project.template.services.auth.UserDetailServiceImpl;
 import org.springframework.http.HttpStatus;
@@ -19,12 +20,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody UserDTO user){
-        return new ResponseEntity<>(this.userDetailService.register(user), HttpStatus.CREATED);
+    public ResponseEntity<Response<AuthResponse>> register(@RequestBody UserDTO user){
+        var response = this.userDetailService.register(user);
+        return new ResponseEntity<>(response, response.data() == null ? HttpStatus.BAD_REQUEST : HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody AuthLoginRequest userRequest){
+    public ResponseEntity<Response<AuthResponse>> login(@RequestBody AuthLoginRequest userRequest){
         return new ResponseEntity<>(this.userDetailService.loginUser(userRequest), HttpStatus.OK);
     }
 }

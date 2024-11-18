@@ -1,12 +1,16 @@
 package com.project.template.domain.dto;
 
 import com.project.template.domain.entities.Role;
-import lombok.Data;
+import lombok.*;
 
 import java.util.HashSet;
 import java.util.Set;
 
-@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
+@Builder
 public class UserDTO {
     private String firstName;
     private String lastName;
